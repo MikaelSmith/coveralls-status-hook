@@ -15,7 +15,8 @@
   :uberjar-name "coveralls-status-hook-standalone.jar"
   :profiles
   {:dev {:dependencies [[javax.servlet/servlet-api "2.5"]
-                        [ring-mock "0.1.5"]]}
+                        [ring-mock "0.1.5"]]
+         :env {:disable-csrf true}}
    :production {:env {:production true}}
    :uberjar {:aot :all}}
   :main coveralls-status-hook.core.handler

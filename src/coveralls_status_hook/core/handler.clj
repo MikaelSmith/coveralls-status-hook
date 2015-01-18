@@ -11,29 +11,72 @@
 (def oauth_token (env :github-oauth-token))
 (def change_threshold (Double/parseDouble (or (env :coveralls-failure) "-1.0")))
 
-(defn update-github-status [request]
+(defn find-possible-pr
+  "Return the parent repo, or nil if the specified sha doesn't exist in the parent."
+  [user repo sha]
+  (let [request (repos/specific-repo user repo {:oauth-token oauth_token})]
+    (println "Get parent repo for" user (str repo ":"))
+    (println request)
+    (get-in request [:parent :owner :login])
+    )
+  )
+
+(defn get-commit
+  "Return the commit signature of a specific commit"
+  [user repo sha]
+  (if-let [request (repos/specific-commit user repo sha {:oauth-token oauth_token})]
+    (do (println "Get commit" user repo (str sha ":"))
+        (println request)
+        (request :commit))))
+
+(defn commits=
+  "Compare commits from different repos to ensure they're identical."
+  [commit1 commit2]
+  (= (dissoc commit1 :tree :url)
+     (dissoc commit2 :tree :url)))
+
+(defn coverage-description
+  "Return a description of the change in code coverage"
+  [covered change]
+  (str "Coverage "
+       (if covered (str "(" covered "%) "))
+       (cond
+         (< change 0.0) (str "rose " change)
+         (> change 0.0) (str "fell " change)
+         :else "remained the same")))
+
+(defn update-github-status
+  "Post a Github status for Coveralls.io to the commit of the specified repo,
+  and the parent repo if found."
+  [request]
+  (println "Incoming request:")
   (println request)
   (let [[user repo] (str/split (get-in request [:params :repo_name]) #"/")
         sha (get-in request [:params :commit_sha])
-        change (get-in request [:params :coverage_change])
-        changenum (Double/parseDouble change)
+        change (Double/parseDouble (get-in request [:params :coverage_change]))
         target_url (get-in request [:params :url])
         branch (get-in request [:params :branch])
-        desc (str "Coverage "
-                  (cond
-                    (< changenum 0.0) (str "has improved (" change ")")
-                    (> changenum 0.0) (str "has declined (" change ")")
-                    :else "remained the same")
-                  " for " sha " on " branch ".")
-        success (if (< changenum change_threshold) "failure" "success")
+        desc (coverage-description (get-in request [:params :covered_percent]) change)
+        success (if (< change change_threshold) "failure" "success")
         context "continuous-integration/coveralls"
+        parent (find-possible-pr user repo sha)
         ]
-    (repos/create-status user repo sha
-                         {:oauth-token oauth_token
-                          :state success
-                          :target-url target_url
-                          :description desc
-                          :context context})
+    (println "Update status of" user repo (str sha ":"))
+    (println (repos/create-status user repo sha
+                                  {:oauth-token oauth_token
+                                   :state success
+                                   :target-url target_url
+                                   :description desc
+                                   :context context}))
+    (if (and parent (commits= (get-commit user repo sha) (get-commit parent repo sha)))
+      (do (println "Update status of" parent repo (str sha ":"))
+          (println (repos/create-status parent repo sha
+                                        {:oauth-token oauth_token
+                                         :state success
+                                         :target-url target_url
+                                         :description desc
+                                         :context context})))
+      (println (if parent "Commits didn't match." "No parent found.")))
     )
   "done"
   )
@@ -44,7 +87,11 @@
   (route/not-found "Not Found"))
 
 (def app
-  (wrap-defaults app-routes site-defaults))
+  (wrap-defaults app-routes
+                 (if (env :disable-csrf)
+                   ; Disable anti-forgery (CSRF) protection for development
+                   (assoc-in site-defaults [:security :anti-forgery] false)
+                   site-defaults)))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port (env :port) 5000))]
