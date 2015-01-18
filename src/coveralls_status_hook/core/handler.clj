@@ -42,9 +42,8 @@
   (POST (str "/" (env :webhook-path)) [] update-github-status)
   (route/not-found "Not Found"))
 
-; Anti-forgery (CSRF) protection is disabled; no cookies are used by the app.
 (def app
-  (wrap-defaults app-routes (assoc-in site-defaults [:security :anti-forgery] false)))
+  (wrap-defaults app-routes site-defaults))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port (env :port) 5000))]
