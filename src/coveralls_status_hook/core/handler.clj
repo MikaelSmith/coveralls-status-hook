@@ -12,6 +12,7 @@
 (def change_threshold (Double/parseDouble (or (env :coveralls-failure) "-1.0")))
 
 (defn update-github-status [request]
+  (println request)
   (let [[user repo] (str/split (get-in request [:params :repo_name]) #"/")
         sha (get-in request [:params :commit_sha])
         change (get-in request [:params :coverage_change])
