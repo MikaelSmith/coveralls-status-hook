@@ -86,12 +86,9 @@
   (POST (str "/" (env :webhook-path)) [] update-github-status)
   (route/not-found "Not Found"))
 
+; Disable anti-forgery (CSRF) protection; as the project states, it's not appropriate for web services
 (def app
-  (wrap-defaults app-routes
-                 (if (env :disable-csrf)
-                   ; Disable anti-forgery (CSRF) protection for development
-                   (assoc-in site-defaults [:security :anti-forgery] false)
-                   site-defaults)))
+  (wrap-defaults app-routes (assoc-in site-defaults [:security :anti-forgery] false)))
 
 (defn -main [& [port]]
   (let [port (Integer. (or port (env :port) 5000))]
