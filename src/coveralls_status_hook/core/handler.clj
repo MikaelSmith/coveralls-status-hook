@@ -16,8 +16,7 @@
   "Return the parent repo, or nil if the specified sha doesn't exist in the parent."
   [user repo sha]
   (let [request (repos/specific-repo user repo {:oauth-token oauth_token})]
-    (log/infof "----- Get parent repo for %s/%s -----" user repo)
-    (log/info request)
+    (log/infof "----- Get parent repo for %s/%s -----\n%s" user repo request)
     (get-in request [:parent :owner :login])
     )
   )
@@ -26,8 +25,7 @@
   "Return the commit signature of a specific commit"
   [user repo sha]
   (if-let [request (repos/specific-commit user repo sha {:oauth-token oauth_token})]
-    (do (log/infof "----- Get commit %s/%s:%s -----" user repo sha)
-        (log/info request)
+    (do (log/infof "----- Get commit %s/%s:%s -----\n%s" user repo sha request)
         (request :commit))))
 
 (defn commits=
@@ -40,7 +38,7 @@
   "Return a description of the change in code coverage"
   [covered change]
   (str "Coverage "
-       (if covered (str "(" covered "%) "))
+       (if covered (format "(%.2f) " (Double/parseDouble covered)))
        (cond
          (< change 0.0) (str "rose " change)
          (> change 0.0) (str "fell " change)
@@ -50,8 +48,7 @@
   "Post a Github status for Coveralls.io to the commit of the specified repo,
   and the parent repo if found."
   [request]
-  (log/info "----- Incoming request -----")
-  (log/info request)
+  (log/infof "----- Incoming request -----\n%s" request)
 
   (let [[user repo] (str/split (get-in request [:params :repo_name]) #"/")
         sha (get-in request [:params :commit_sha])
@@ -63,22 +60,22 @@
         context "continuous-integration/coveralls"
         parent (find-possible-pr user repo sha)
         ]
-    (log/infof "----- Update status of %s/%s:%s -----" user repo sha)
-    (log/info (repos/create-status user repo sha
-                                   {:oauth-token oauth_token
-                                    :state success
-                                    :target-url target_url
-                                    :description desc
-                                    :context context}))
+    (log/infof "----- Update status of %s/%s:%s -----\n%s" user repo sha
+               (repos/create-status user repo sha
+                                    {:oauth-token oauth_token
+                                     :state success
+                                     :target-url target_url
+                                     :description desc
+                                     :context context}))
 
     (if (and parent (commits= (get-commit user repo sha) (get-commit parent repo sha)))
-      (do (log/infof "----- Update status of %s/%s:%s -----" parent repo sha)
-          (log/info (repos/create-status parent repo sha
-                                         {:oauth-token oauth_token
-                                          :state success
-                                          :target-url target_url
-                                          :description desc
-                                          :context context})))
+      (log/infof "----- Update status of %s/%s:%s -----\n%s" parent repo sha
+                 (repos/create-status parent repo sha
+                                      {:oauth-token oauth_token
+                                       :state success
+                                       :target-url target_url
+                                       :description desc
+                                       :context context}))
       (log/warn (if parent "Commits didn't match." "No parent found.")))
     )
   "done"
