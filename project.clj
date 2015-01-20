@@ -7,7 +7,8 @@
                  [ring/ring-defaults "0.1.2"]
                  [ring/ring-jetty-adapter "1.2.2"]
                  [environ "0.5.0"]
-                 [tentacles "0.3.0"]]
+                 [tentacles "0.3.0"]
+                 [org.clojure/tools.logging "0.3.1"]]
   :plugins [[environ/environ.lein "0.2.1"]
             [lein-ring "0.8.13"]]
   :ring {:handler coveralls-status-hook.core.handler/app}
